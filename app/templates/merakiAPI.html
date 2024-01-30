@@ -1,0 +1,185 @@
+{% extends "masterPage.html" %}
+
+{% block content %}
+<style>
+  .scrollable-panel {
+    max-height: calc(100vh - 200px); /* Adjust the 200px to account for your header/footer */
+    overflow-y: auto;
+  }
+
+  #results pre {
+    background-color: #f7f7f7;
+    border: 1px solid #ddd;
+    border-left: 3px solid #f36d33;
+    color: #666;
+    page-break-inside: avoid;
+    font-family: monospace;
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 1.6em;
+    max-width: 100%;
+    overflow: auto;
+    padding: 1em 1.5em;
+    display: block;
+    word-wrap: break-word;
+}
+#loading {
+        width: 100%;
+        position: fixed;
+        top: 0;
+        left: 0;
+        background-color: rgba(255, 255, 255, 0.7);
+        z-index: 1000;
+    }
+    .loading-bar {
+        height: 5px;
+        width: 0%;
+        background-color: #3498db;
+        transition: width 2s;
+    }
+</style>
+
+
+<div class="container mt-3">
+    <a href="{{ url_for('manage_devices') }}" class="btn btn-secondary">Manage Devices</a>
+    <br>
+    <form id="combinedForm" method="POST" action="/meraki_api">
+        <input type="hidden" name="organization" value="{{ selected_org }}">
+        <div class="row">
+            <!-- Left Rail - Devices Panel -->
+            <div class="col-xl-4">
+                <div class="panel panel--loose panel--raised base-margin-bottom scrollable-panel">
+                    <h2 class="subtitle">Devices</h2>
+                    <hr>
+                    <div class="list-group">
+                        {% for device in switches %}
+                        <div class="list-group-item">
+                            <div class="row align-items-center">
+                                <div class="col">
+                                    <input type="checkbox" id="device-{{ device.id }}" name="devices" value="{{ device.id }}">
+                                    <label for="device-{{ device.id }}">{{ device.hostname }}</label>
+                                </div>
+                                <div class="col-auto">
+                                    {% if device.connection %}
+                                        <span class="text-success">Connected</span>
+                                    {% else %}
+                                        <span class="text-danger">Disconnected</span>
+                                    {% endif %}
+                                </div>
+                                <div class="col-auto">
+                                    {% if device.mac_table_saved %}
+                                        <span class="text-success">MAC Table</span>
+                                    {% else %}
+                                        <span class="text-danger">No MAC Table</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Center Rail - Results Panel -->
+            <div class="col-xl-5">
+                <a href="/export-csv">
+                    <span class="label label--success">Export to CSV</span>
+                </a>
+                <br>
+               <div class="panel panel--loose panel--raised base-margin-bottom">
+                    <div id="loading" style="display: none;">
+                        <div class="loading-bar"></div>
+                    </div>
+                    <h2 class="subtitle">Results</h2>
+                    <hr>
+                    <div class="card-body" id="results">
+                        {% if results %}
+                        {% for entry in results %}
+                            <div class="json-entry">
+                                {% for key, value in entry.items() %}
+                                <p><strong>{{ key }}:</strong> {{ value }}</p>
+                                {% endfor %}
+                            </div>
+                            <hr>
+                            {% endfor %}
+                        {% else %}
+                        <p>Select devices and networks and submit to see results.</p>
+                        {% endif %}
+                    </div>                    
+                </div>
+            </div>
+
+            <!-- Right Rail - Meraki Networks Panel -->
+            <div class="col-xl-3">
+                <div class="panel panel--loose panel--raised base-margin-bottom scrollable-panel">
+                    <h2 class="subtitle">Meraki Networks</h2>
+                    <hr>
+                    <button type="button" id="selectAllNetworks" class="btn btn--secondary btn-sm mb-2">Select All</button>
+                    <!-- Space between buttons -->
+                    <span style="margin-right: 10px;"></span>
+
+                    <!-- Deselect All button -->
+                    <button id="deselectAllNetworks"class="btn btn--secondary btn-sm mb-2">Deselect All</button>
+                    <div class="list-group"id="networksList">
+                        {% for network in networks %}
+                        <div class="list-group-item">
+                            <input class="form-check-input" type="checkbox" id="network-{{ network.id }}" name="networks" value="{{ network.id }}">
+                            <label class="form-check-label" for="network-{{ network.id }}">
+                                {{ network.name }}
+                            </label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="row">
+            <div class="col-12 text-center">
+                <button type="submit" class="btn btn--primary btn-lg">Submit</button>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var selectAllButton = document.getElementById('selectAllNetworks');
+    var deselectAllButton = document.getElementById('deselectAllNetworks');
+
+    if (selectAllButton) {
+        selectAllButton.addEventListener('click', function() {
+            event.preventDefault(); // Prevent form submission
+            var checkboxes = document.getElementById('networksList').getElementsByTagName('input');
+            for (var i = 0; i < checkboxes.length; i++) {
+                if (checkboxes[i].type == 'checkbox') {
+                    checkboxes[i].checked = true;
+                }
+            }
+        });
+    }
+
+    if (deselectAllButton) {
+        deselectAllButton.addEventListener('click', function() {
+            event.preventDefault(); // Prevent form submission
+            var checkboxes = document.getElementById('networksList').getElementsByTagName('input');
+            for (var i = 0; i < checkboxes.length; i++) {
+                if (checkboxes[i].type == 'checkbox') {
+                    checkboxes[i].checked = false;
+                }
+            }
+        });
+    }
+});
+
+document.getElementById('combinedForm').onsubmit = function() {
+        document.getElementById('loading').style.display = 'block';
+        setTimeout(function() {
+            document.querySelector('.loading-bar').style.width = '100%';
+        }, 10);
+    };
+
+</script>
+
+{% endblock %}
